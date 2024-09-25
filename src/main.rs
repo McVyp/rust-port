@@ -22,25 +22,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rt = Runtime::new()?;
 
     let (tx, mut rx) = mpsc::channel(10);
-    // let mut open_ports = vec![];
+    
     rt.block_on(async {
+        let mut tasks = vec![];
         for port in args.port_start..=args.port_end {
             println!("? {}:{}", args.addr, port);
             let tx = tx.clone();
             let task = tokio::spawn(
                 async move{
-                    let connection_attempt = TcpStream::connect((args.addr, port)).await;
-                    if let Ok(_open) = connection_attempt{
-                        tx.send((args.addr, port)).await.unwrap();
-                    };
+                    let scan_attempt = scan(args.addr, port, tx).await;
+                    if let Err(err) = scan_attempt{
+                        eprintln!("Error: {err}");
+                         //or use panic!
+                    }
                 });
-            let _ = task.await;
-        }
+                tasks.push(task);
+            }
+            for task in tasks {
+                task.await.unwrap();
+            }
     });
+
+    drop(tx);
 
     while let Ok((addr, port)) = rx.try_recv() {
         println!("= {}:{}", addr, port);
     }
     // println!("{}", args.addr);
+    Ok(())
+}
+
+async fn scan(addr: IpAddr, port: u16, results_tx: mpsc::Sender<(IpAddr, u16)>) -> Result<(), mpsc::error::SendError<(IpAddr, u16)>> {
+    let connection_attempt = TcpStream::connect((addr, port)).await;
+    if let Ok(_open) = connection_attempt{
+       results_tx.send((addr, port)).await?;
+    };
     Ok(())
 }
