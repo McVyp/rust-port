@@ -43,18 +43,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             (_, _) => unreachable!(),
         }
-        // if let Some(addr) = args.addr {
-        //    let from_single =  vec![addr].into_iter(); //list of addresses
-        //    addresses = &mut from_single;
-        // } 
-        // else if let Some(cidr)  = args.cidr{
-        //     let from_cidr = cidr.iter().map(|net |net.address());
-        //     addresses = &mut from_cidr;
-        // }
-        // else{
-        //     unreachable!()
-        // };
-
         for addr in addresses {
         for port in args.port_start..=args.port_end {
             println!("? {}:{}", addr, port);
