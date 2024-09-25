@@ -1,11 +1,14 @@
 use clap::Parser;
 use std::net::IpAddr;
 use tokio::{net::TcpStream, runtime::Runtime, sync::mpsc};
-
+use cidr::IpCidr;
 #[derive(Debug, Parser)]
 struct Args {
-    #[arg()]
-    addr: IpAddr,
+    #[arg(conflicts_with("cidr"), required_unless_present("cidr"))]
+    addr: Option<IpAddr>,
+
+    #[arg(long)]
+    cidr: Option<IpCidr>,
 
     /// --port_start 1
     #[arg(long, default_value_t = 1)]
@@ -25,12 +28,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     rt.block_on(async {
         let mut tasks = vec![];
+
+         
+        let (mut from_single, mut from_cidr);
+        let addresses : &mut dyn Iterator<Item = std::net::IpAddr>;
+        match( args.addr, args.cidr) {
+            (Some(addr), _) =>{
+                from_single = vec![addr].into_iter();
+                addresses= &mut from_single;
+            },
+            (_, Some(cidr)) =>{
+                from_cidr = cidr.iter().map(|net |net.address());
+                addresses = &mut from_cidr;
+            },
+            (_, _) => unreachable!(),
+        }
+        // if let Some(addr) = args.addr {
+        //    let from_single =  vec![addr].into_iter(); //list of addresses
+        //    addresses = &mut from_single;
+        // } 
+        // else if let Some(cidr)  = args.cidr{
+        //     let from_cidr = cidr.iter().map(|net |net.address());
+        //     addresses = &mut from_cidr;
+        // }
+        // else{
+        //     unreachable!()
+        // };
+
+        for addr in addresses {
         for port in args.port_start..=args.port_end {
-            println!("? {}:{}", args.addr, port);
+            println!("? {}:{}", addr, port);
             let tx = tx.clone();
             let task = tokio::spawn(
                 async move{
-                    let scan_attempt = scan(args.addr, port, tx).await;
+                    let scan_attempt = scan(addr, port, tx).await;
                     if let Err(err) = scan_attempt{
                         eprintln!("Error: {err}");
                          //or use panic!
@@ -38,6 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 });
                 tasks.push(task);
             }
+        }
             for task in tasks {
                 task.await.unwrap();
             }
